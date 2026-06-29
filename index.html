@@ -169,6 +169,27 @@
         // 3. CAMBIO ESTRATÉGICO: Conexión con tu API segura en Vercel
         const apiSecureUrl = 'https://reportes-solicitud-de-apoyo-terremo.vercel.app/api/alertas';       
 
+        // --- FUNCIÓN ADICIONAL: PROCESAR ENLACES DE REDES SOCIALES ---
+function obtenerUrlIncrustada(url) {
+    if (!url || typeof url !== 'string') return '';
+    let urlLimpia = url.trim();
+
+    // Transformación para Instagram
+    if (urlLimpia.includes('instagram.com')) {
+        let parteBase = urlLimpia.split('?')[0];
+        if (!parteBase.endsWith('/')) parteBase += '/';
+        return `${parteBase}embed/`;
+    }
+    
+    // Transformación para TikTok (Escritorio / Links completos)
+    if (urlLimpia.includes('tiktok.com') && urlLimpia.includes('/video/')) {
+        const match = urlLimpia.match(/\/video\/(\d+)/);
+        if (match && match[1]) {
+            return `https://www.tiktok.com/embed/v2/${match[1]}`;
+        }
+    }
+    return urlLimpia;
+}
         async function fetchConTimeout(url, opciones, timeout = 25000) {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
@@ -204,7 +225,11 @@
                         const descripcion = registro['descripcion_emergencia'] || 'Sin descripción disponible.';
                         const fecha = registro['fecha_de_alerta'] || 'Reciente';
                         const fuente = registro['Fuente_de_la_informaci_n'] || 'Usuario de Redes Sociales';
+                        const linkRedSocial = registro['video_embed_url'] || ''; 
+                        const urlEmbebida = obtenerUrlIncrustada(linkRedSocial);
                         const masInformacion = registro['M_s_informaci_n'] || ''
+
+
                         
                         let fotoUrl = '';
                         let videoUrl = '';
@@ -248,6 +273,46 @@
                                 </p>
                             `;
                         }
+
+                        // NUEVA SECCIÓN: RENDERIZAR REPRODUCTOR DIRECTO DE RED SOCIAL (Si existe el link)
+if (urlEmbebida !== '') {
+    const esLinkCortoTikTok = linkRedSocial.includes('tiktok.com') && !urlEmbebida.includes('/embed/');
+
+    popupContent += `
+        <div style="margin-top: 8px;">
+            <p><strong>Video de Red Social:</strong></p>
+            <div style="position: relative; width: 100%; max-width: 350px; height: 340px; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.2); background-color: #000;">
+    `;
+
+    if (esLinkCortoTikTok) {
+        popupContent += `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; text-align: center; color: white;">
+                    <span style="font-size: 24px; margin-bottom: 10px;">📱</span>
+                    <p style="font-size: 11px; margin-bottom: 15px; line-height:1.3;">Video de TikTok copiado desde celular (enlace corto).</p>
+                    <a href="${linkRedSocial}" target="_blank" style="background-color: #fe2c55; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 11px;">
+                        Ver video en TikTok ↗
+                    </a>
+                </div>
+        `;
+    } else {
+        popupContent += `
+                <iframe 
+                    src="${urlEmbebida}" 
+                    width="100%" 
+                    height="100%" 
+                    frameborder="0" 
+                    scrolling="no" 
+                    allowtransparency="true" 
+                    allow="encrypted-media;">
+                </iframe>
+        `;
+    }
+
+    popupContent += `
+            </div>
+        </div>
+    `;
+}
 
                         if (videoUrl) {
                             popupContent += `
