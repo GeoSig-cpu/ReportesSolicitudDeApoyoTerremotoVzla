@@ -140,7 +140,7 @@
 
     <div class="map-header">
         <h1>Reportes Solicitud de Apoyo</h1>
-        <p>Plataforma de georreferenciación de recopilación de reportes multimedia  y solicitud de Apoyo publicados por usuarios y periodistas en redes sociales las ùltimas 24 horas (Elaborado por Voluntarios)</p>
+        <p>Plataforma de georreferenciación de recopilación de reportes multimedia y solicitud de Apoyo publicados por usuarios y periodistas en redes sociales las últimas 24 horas (Elaborado por Voluntarios)</p>
         <div class="counter-badge" id="report-counter">Cargando reportes...</div>
     </div>
 
@@ -166,9 +166,9 @@
             shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        // 3. Configuración de API con Token y Túnel CORS Seguro (corsproxy.io)
-        const koboApiUrl = 'https://kf.kobotoolbox.org/api/v2/assets/aPcBdrLnEjLyJakCW4UFSP/data.json';       
-        const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(koboApiUrl);
+        // 3. CAMBIO ESTRATÉGICO: Conexión con tu API segura en Vercel
+        // Reemplaza esta URL de ejemplo por la URL final que te asigne Vercel
+        const apiSecureUrl = 'https://reportes-solicitud-de-apoyo-terremo.vercel.app/api/alertas';       
 
         async function fetchConTimeout(url, opciones, timeout = 25000) {
             const controller = new AbortController();
@@ -185,13 +185,9 @@
 
         async function cargarAlertas(reintentos = 3) {
             try {
-                // Consultamos directamente a través de corsproxy.io usando el Token estructurado
-                const response = await fetchConTimeout(proxyUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Token d94bc9bc2191044fdc135d0ccb2466a113c93664',
-                        'Accept': 'application/json'
-                    }
+                // Hacemos una petición limpia, sin cabeceras de autorización expuestas
+                const response = await fetchConTimeout(apiSecureUrl, {
+                    method: 'GET'
                 });
 
                 if (!response.ok) throw new Error(`Error de red: ${response.status}`);
@@ -241,20 +237,26 @@
                             `;
                         }
 
-               if (videoUrl) {
-    popupContent += `
-        <p><strong>Video de Redes:</strong><br>
-            <video class="popup-media" controls preload="metadata" playsinline>
-                <source src="${videoUrl}" type="video/mp4">
-                Tu navegador no soporta streaming directo.
-            </video>
-            <br>
-            <a href="${videoUrl}" target="_blank" style="font-size: 11px; color: #2980b9; text-decoration: underline; display: block; margin-top: 4px;">
-                🔗 Abrir / Descargar video en pestaña nueva
-            </a>
-        </p>
-    `;
-}
+                        // CAMBIO ESTRATÉGICO: Implementación de Lazy Loading Avanzado de Videos para acelerar el servidor
+                        if (videoUrl) {
+                            popupContent += `
+                                <div style="margin-top: 8px;">
+                                    <p><strong>Video de Redes:</strong></p>
+                                    <div style="position: relative; background: #000; border-radius: 6px; width: 100%; max-width: 350px; height: 200px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+                                        <video class="popup-media" controls preload="none" playsinline style="width: 100%; height: 100%; object-fit: cover;" onclick="this.src='${videoUrl}'; this.play();">
+                                            <source src="" type="video/mp4">
+                                            Tu navegador no soporta streaming.
+                                        </video>
+                                        <div class="play-overlay" style="position: absolute; color: white; pointer-events: none; font-size: 12px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 4px; text-align: center;">
+                                            ▶️ Hacer clic para cargar e iniciar video
+                                        </div>
+                                    </div>
+                                    <a href="${videoUrl}" target="_blank" style="font-size: 11px; color: #2980b9; text-decoration: underline; display: block; margin-top: 6px; font-weight: 600;">
+                                        📥 Descargar video directo (Más rápido)
+                                    </a>
+                                </div>
+                            `;
+                        }
 
                         popupContent += `
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
@@ -262,7 +264,18 @@
                             </div>
                         `;
 
-                        L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
+                        const marker = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
+
+                        // Evento para ocultar dinámicamente la etiqueta de ayuda cuando el usuario reproduce el video
+                        marker.on('popupopen', function() {
+                            const videoEl = document.querySelector('.leaflet-popup-content video');
+                            const overlayEl = document.querySelector('.leaflet-popup-content .play-overlay');
+                            if (videoEl && overlayEl) {
+                                videoEl.addEventListener('play', () => {
+                                    overlayEl.style.display = 'none';
+                                });
+                            }
+                        });
                     }
                 });
 
@@ -272,7 +285,7 @@
                     document.getElementById('report-counter').innerText = `🔄 Redireccionando pasarela... (${reintentos})`;
                     setTimeout(() => cargarAlertas(reintentos - 1), 3000);
                 } else {
-                    document.getElementById('report-counter').innerText = `⚠️ Error de comunicación CORS de seguridad`;
+                    document.getElementById('report-counter').innerText = `⚠️ Error de comunicación segura`;
                 }
             }
         }
