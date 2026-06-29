@@ -167,7 +167,6 @@
         });
 
         // 3. CAMBIO ESTRATÉGICO: Conexión con tu API segura en Vercel
-        // Reemplaza esta URL de ejemplo por la URL final que te asigne Vercel
         const apiSecureUrl = 'https://reportes-solicitud-de-apoyo-terremo.vercel.app/api/alertas';       
 
         async function fetchConTimeout(url, opciones, timeout = 25000) {
@@ -185,7 +184,6 @@
 
         async function cargarAlertas(reintentos = 3) {
             try {
-                // Hacemos una petición limpia, sin cabeceras de autorización expuestas
                 const response = await fetchConTimeout(apiSecureUrl, {
                     method: 'GET'
                 });
@@ -222,6 +220,7 @@
                             }
                         }
 
+                        // Construcción base del Popup
                         let popupContent = `
                             <div class="popup-emergencia">
                                 <h3>📍 Reporte de Campo</h3>
@@ -237,41 +236,41 @@
                             `;
                         }
 
-                        // CAMBIO ESTRATÉGICO: Implementación de Lazy Loading Avanzado de Videos para acelerar el servidor
                         if (videoUrl) {
                             popupContent += `
                                 <div style="margin-top: 8px;">
                                     <p><strong>Video de Redes:</strong></p>
                                     <div style="position: relative; background: #000; border-radius: 6px; width: 100%; max-width: 350px; height: 200px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
-            <video class="popup-media" controls preload="none" playsinline style="width: 100%; height: 100%; object-fit: cover;" onclick="if(!this.src){ this.src='${videoUrl}'; this.load(); } this.play();">
-    Tu navegador no soporta streaming.
-</video>
+                                        <video class="popup-media" controls preload="none" playsinline style="width: 100%; height: 100%; object-fit: cover;" onclick="if(!this.src){ this.src='${videoUrl}'; this.load(); } this.play();">
+                                            Tu navegador no soporta streaming.
+                                        </video>
                                         <div class="play-overlay" style="position: absolute; color: white; pointer-events: none; font-size: 12px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 4px; text-align: center;">
                                             ▶️ Hacer clic para cargar e iniciar video
                                         </div>
-                                        </div>
+                                    </div>
                                     <a href="${videoUrl}" target="_blank" style="font-size: 11px; color: #2980b9; text-decoration: underline; display: block; margin-top: 6px; font-weight: 600;">
                                         📥 Descargar video
                                     </a>
-                                    // Creamos los enlaces directos a Google Maps y Waze usando las coordenadas del registro
-const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-
-popupContent += `
-    <div style="margin-top: 12px; display: flex; gap: 8px;">
-        <a href="${googleMapsUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #34a853; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            🚗 Cómo llegar (Google Maps)
-        </a>
-        <a href="${wazeUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #29b6f6; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            🔷 Waze
-        </a>
-    </div>
-`;
-
-                                
-                           
+                                </div>
+                            `;
                         }
 
+                        // AGREGAR BOTONES DE "CÓMO LLEGAR" PARA TODOS LOS REPORTES
+                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                        const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+
+                        popupContent += `
+                            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                                <a href="${googleMapsUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #34a853; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    🚗 Google Maps
+                                </a>
+                                <a href="${wazeUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #29b6f6; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    🔷 Waze
+                                </a>
+                            </div>
+                        `;
+
+                        // Cerrar el contenedor principal del popup
                         popupContent += `
                                 <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
                                 <p style="margin: 0; font-size: 11px; color: #777; text-align: right;">📅 Registro: ${fecha}</p>
@@ -280,7 +279,7 @@ popupContent += `
 
                         const marker = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
 
-                        // Evento para ocultar dinámicamente la etiqueta de ayuda cuando el usuario reproduce el video
+                        // Evento para ocultar la etiqueta flotante de los videos
                         marker.on('popupopen', function() {
                             const videoEl = document.querySelector('.leaflet-popup-content video');
                             const overlayEl = document.querySelector('.leaflet-popup-content .play-overlay');
