@@ -21,7 +21,7 @@ export default async function handler(req, res) {
         const data = await response.json();
 
         // IMPORTANTE: Aquí permitimos que tu mapa en GitHub Pages lea los datos sin error de CORS
-        res.setHeader('Access-Control-Allow-Origin', 'https://reinaldo2609-hub.github.io');
+        res.setHeader('Access-Control-Allow-Origin', 'https://geosig-cpu.github.io');
         res.setHeader('Access-Control-Allow-Methods', 'GET');
         res.setHeader('Content-Type', 'application/json');
         
