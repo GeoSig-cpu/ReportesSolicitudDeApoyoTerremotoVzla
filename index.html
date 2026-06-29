@@ -204,7 +204,8 @@
                         const descripcion = registro['descripcion_emergencia'] || 'Sin descripción disponible.';
                         const fecha = registro['fecha_de_alerta'] || 'Reciente';
                         const fuente = registro['Fuente_de_la_informaci_n'] || 'Usuario de Redes Sociales';
-
+                        const masInformacion = registro['M_s_informaci_n'] || ''
+                        
                         let fotoUrl = '';
                         let videoUrl = '';
 
@@ -227,6 +228,18 @@
                                 <p><strong>Descripción:</strong> ${descripcion}</p>
                                 <p><strong>Verificación / Fuente:</strong> <span style="color: #2980b9; font-weight: bold;">${fuente}</span></p>
                         `;
+                        if (masInformacion.trim() !== '') {
+                            // Validamos si el usuario escribió el enlace con http, si no, se lo ponemos para que no rompa la ruta base
+                            const urlValida = masInformacion.startsWith('http') ? masInformacion : `https://${masInformacion}`;
+                            popupContent += `
+                                <p><strong>Más información:</strong> 
+                                    <a href="${urlValida}" target="_blank" style="color: #e67e22; font-weight: bold; text-decoration: underline;">
+                                        Ver enlace externo 🔗
+                                    </a>
+                                </p>
+                            `;
+                        }
+                        
 
                         if (fotoUrl) {
                             popupContent += `
