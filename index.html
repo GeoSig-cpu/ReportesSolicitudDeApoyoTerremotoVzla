@@ -203,323 +203,304 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <script>
-        // 1. Inicializar el mapa centrado en el Estado La Guaira con zoom adaptado
-        const map = L.map('map', { zoomControl: false }).setView([10.5950, -66.9300], 9);
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // 1. Inicializar el mapa centrado en el Estado La Guaira con zoom adaptado
+    const map = L.map('map', { zoomControl: false }).setView([10.5950, -66.9300], 9);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // 2. Capa base
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+    // 2. Capa base
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-        // --- SOLUCIÓN PARA ICONOS INVISIBLES ---
-        delete L.Icon.Default.prototype._getIconUrl;
-        L.Icon.Default.mergeOptions({
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        });
+    // --- SOLUCIÓN PARA ICONOS INVISIBLES ---
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    });
 
-        // 3. Conexión con tu API segura en Vercel
-        const apiSecureUrl = 'https://reportes-solicitud-de-apoyo-terremo.vercel.app/api/alertas';       
+    // 3. Conexión con tu API segura en Vercel
+    const apiSecureUrl = 'https://reportes-solicitud-de-apoyo-terremo.vercel.app/api/alertas';       
 
-        // VARIABLES GLOBALES PARA FILTRADO Y MANEJO DE CAPAS
-        let todosLosRegistros = [];
-        
-        // NUEVO: Control de capas para la leyenda interactiva
-        let controlCapas = null;
+    // VARIABLES GLOBALES PARA FILTRADO Y MANEJO DE CAPAS
+    let todosLosRegistros = [];
+    let controlCapas = null;
 
-        // Diccionario maestro de colores mapeado con las opciones de Kobo
-        const coloresAyuda = {
-            "Maquinaria Pesada": "#e74c3c", // Rojo
-            "Insumos médicos": "#00bcd4",   // Celeste/Cian
-            "Alimentos": "#2ecc71",         // Verde
-            "Rescatistas": "#9b59b6",       // Morado
-            "Otro": "#f1c40f",              // Amarillo
-            "No especificado": "#7f8c8d"    // Gris
-        };
+    // Diccionario maestro de colores estándar
+    const coloresAyuda = {
+        "Maquinaria Pesada": "#e74c3c", 
+        "Insumos médicos": "#00bcd4",   
+        "Alimentos": "#2ecc71",         
+        "Rescatistas": "#9b59b6",       
+        "Otro": "#f1c40f",              
+        "No especificado": "#7f8c8d"    
+    };
 
-        // NUEVO: Objeto dinámico para almacenar las sub-capas vectoriales por categoría de ayuda
-        let capasPorCategoria = {};
+    // NUEVO: Diccionario de normalización para interceptar cómo viene de Kobo/API
+    // Esto asegura que si viene en minúsculas, con guiones bajos o con errores comunes, se asigne bien.
+    const mapeoCategorias = {
+        "alimentos": "Alimentos",
+        "alimnetos": "Alimentos", // Por si quedó la errata en la base de datos
+        "insumos medicos": "Insumos médicos",
+        "insumos_medicos": "Insumos médicos",
+        "insumos": "Insumos médicos",
+        "maquinaria pesada": "Maquinaria Pesada",
+        "maquinaria_pesada": "Maquinaria Pesada",
+        "maquinaria": "Maquinaria Pesada",
+        "rescatistas": "Rescatistas",
+        "otro": "Otro"
+    };
 
-        // --- FUNCIÓN ADICIONAL: PROCESAR ENLACES DE REDES SOCIALES ---
-        function obtenerUrlIncrustada(url) {
-            if (!url || typeof url !== 'string') return '';
-            let urlLimpia = url.trim();
+    let capasPorCategoria = {};
 
-            if (urlLimpia.includes('instagram.com')) {
-                let parteBase = urlLimpia.split('?')[0];
-                if (!parteBase.endsWith('/')) parteBase += '/';
-                return `${parteBase}embed/`;
+    function obtenerUrlIncrustada(url) {
+        if (!url || typeof url !== 'string') return '';
+        let urlLimpia = url.trim();
+        if (urlLimpia.includes('instagram.com')) {
+            let parteBase = urlLimpia.split('?')[0];
+            if (!parteBase.endsWith('/')) parteBase += '/';
+            return `${parteBase}embed/`;
+        }
+        if (urlLimpia.includes('tiktok.com') && urlLimpia.includes('/video/')) {
+            const match = urlLimpia.match(/\/video\/(\d+)/);
+            if (match && match[1]) {
+                return `https://www.tiktok.com/embed/v2/${match[1]}`;
             }
+        }
+        return urlLimpia;
+    }
+
+    async function fetchConTimeout(url, opciones, timeout = 25000) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, { ...opciones, signal: controller.signal });
+            clearTimeout(id);
+            return response;
+        } catch (error) {
+            clearTimeout(id);
+            throw error;
+        }
+    }
+
+    async function cargarAlertas(reintentos = 3) {
+        try {
+            const response = await fetchConTimeout(apiSecureUrl, { method: 'GET' });
+            if (!response.ok) throw new Error(`Error de red: ${response.status}`);
             
-            if (urlLimpia.includes('tiktok.com') && urlLimpia.includes('/video/')) {
-                const match = urlLimpia.match(/\/video\/(\d+)/);
-                if (match && match[1]) {
-                    return `https://www.tiktok.com/embed/v2/${match[1]}`;
-                }
-            }
-            return urlLimpia;
-        }
-
-        async function fetchConTimeout(url, opciones, timeout = 25000) {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-            try {
-                const response = await fetch(url, { ...opciones, signal: controller.signal });
-                clearTimeout(id);
-                return response;
-            } catch (error) {
-                clearTimeout(id);
-                throw error;
+            const data = await response.json(); 
+            todosLosRegistros = data.results || [];
+            
+            dibujarMarcadores(todosLosRegistros);
+        } catch (error) {
+            console.error('Error detectado:', error);
+            if (reintentos > 0) {
+                document.getElementById('report-counter').innerText = `🔄 Redireccionando pasarela... (${reintentos})`;
+                setTimeout(() => cargarAlertas(reintentos - 1), 3000);
+            } else {
+                document.getElementById('report-counter').innerText = `⚠️ Error de comunicación segura`;
             }
         }
+    }
 
-        async function cargarAlertas(reintentos = 3) {
-            try {
-                const response = await fetchConTimeout(apiSecureUrl, { method: 'GET' });
+    function dibujarMarcadores(registros) {
+        // Limpiar capas previas
+        for (const clave in capasPorCategoria) {
+            map.removeLayer(capasPorCategoria[clave]);
+        }
+        if (controlCapas) {
+            map.removeControl(controlCapas);
+        }
 
-                if (!response.ok) throw new Error(`Error de red: ${response.status}`);
+        // Reinicializar grupos de capas
+        capasPorCategoria = {};
+        for (const clave in coloresAyuda) {
+            capasPorCategoria[clave] = L.layerGroup();
+        }
+
+        document.getElementById('report-counter').innerText = `📊 ${registros.length} Reportes`;
+
+        registros.forEach(registro => {
+            if (registro._geolocation && registro._geolocation.length >= 2) {
+                const lat = parseFloat(registro._geolocation[0]);
+                const lng = parseFloat(registro._geolocation[1]);
+                if (isNaN(lat) || isNaN(lng)) return;
+
+                const descripcion = registro['descripcion_emergencia'] || 'Sin descripción disponible.';
+                const fecha = registro['fecha_de_alerta'] || 'Reciente';
+                const fuente = registro['Fuente_de_la_informaci_n'] || 'Usuario de Redes Sociales';
+                const linkRedSocial = registro['video_embed_url'] || ''; 
+                const urlEmbebida = obtenerUrlIncrustada(linkRedSocial);
+                const masInformacion = registro['M_s_informaci_n'] || '';
                 
-                const data = await response.json(); 
-                todosLosRegistros = data.results || [];
+                // --- CORRECCIÓN DE CATEGORÍAS (NORMALIZACIÓN) ---
+                const tipoAyudaRaw = registro['tipo_ayuda'] ? String(registro['tipo_ayuda']).trim() : '';
+                const tipoAyudaMinuscula = tipoAyudaRaw.toLowerCase();
                 
-                dibujarMarcadores(todosLosRegistros);
+                let categoriaFinal = "No especificado";
 
-            } catch (error) {
-                console.error('Error detectado:', error);
-                if (reintentos > 0) {
-                    document.getElementById('report-counter').innerText = `🔄 Redireccionando pasarela... (${reintentos})`;
-                    setTimeout(() => cargarAlertas(reintentos - 1), 3000);
+                // 1. Intentar buscar en el mapeo de normalización personalizado
+                if (mapeoCategorias[tipoAyudaMinuscula]) {
+                    categoriaFinal = mapeoCategorias[tipoAyudaMinuscula];
                 } else {
-                    document.getElementById('report-counter').innerText = `⚠️ Error de comunicación segura`;
-                }
-            }
-        }
-
-        // FUNCIÓN MODIFICADA: Ahora clasifica y organiza los puntos en sub-capas independientes
-        function dibujarMarcadores(registros) {
-            // 1. Limpiar capas previas si existían del mapa
-            for (const clave in capasPorCategoria) {
-                map.removeLayer(capasPorCategoria[clave]);
-            }
-            if (controlCapas) {
-                map.removeControl(controlCapas);
-            }
-
-            // 2. Reinicializar los contenedores de grupos de capas vacíos
-            capasPorCategoria = {};
-            for (const clave in coloresAyuda) {
-                capasPorCategoria[clave] = L.layerGroup();
-            }
-
-            document.getElementById('report-counter').innerText = `📊 ${registros.length} Reportes`;
-
-            registros.forEach(registro => {
-                if (registro._geolocation && registro._geolocation.length >= 2) {
-                    const lat = parseFloat(registro._geolocation[0]);
-                    const lng = parseFloat(registro._geolocation[1]);
-                    if (isNaN(lat) || isNaN(lng)) return;
-
-                    const descripcion = registro['descripcion_emergencia'] || 'Sin descripción disponible.';
-                    const fecha = registro['fecha_de_alerta'] || 'Reciente';
-                    const fuente = registro['Fuente_de_la_informaci_n'] || 'Usuario de Redes Sociales';
-                    const linkRedSocial = registro['video_embed_url'] || ''; 
-                    const urlEmbebida = obtenerUrlIncrustada(linkRedSocial);
-                    const masInformacion = registro['M_s_informaci_n'] || '';
-                    
-                    const tipoAyuda = registro['tipo_ayuda'] || 'No especificado';
-
-                    const claveEncontrada = Object.keys(coloresAyuda).find(
-                        clave => clave.toLowerCase() === tipoAyuda.trim().toLowerCase()
+                    // 2. Intentar buscar coincidencia directa ignorando mayúsculas/minúsculas
+                    const coincidenciaDirecta = Object.keys(coloresAyuda).find(
+                        clave => clave.toLowerCase() === tipoAyudaMinuscula
                     );
-                    const categoriaFinal = claveEncontrada || "No especificado";
-                    const colorAsignado = coloresAyuda[categoriaFinal];
-                    
-                    let fotoUrl = '';
-                    let videoUrl = '';
-
-                    if (registro._attachments && registro._attachments.length > 0) {
-                        const adjuntoFoto = registro._attachments.find(att => att.question_xpath === 'evidencia_foto');
-                        if (adjuntoFoto) {
-                            fotoUrl = adjuntoFoto.download_medium_url || adjuntoFoto.download_url || '';
-                        }
-
-                        const adjuntoVideo = registro._attachments.find(att => att.question_xpath === 'evidencia_video');
-                        if (adjuntoVideo) {
-                            videoUrl = adjuntoVideo.download_url || '';
-                        }
+                    if (coincidenciaDirecta) {
+                        categoriaFinal = coincidenciaDirecta;
                     }
+                }
 
-                    // Construcción del Popup
-                    let popupContent = `
-                        <div class="popup-emergencia">
-                            <h3>📍 Reporte de Campo</h3>
-                            <p><strong>Tipo de Ayuda:</strong> <span style="background: ${colorAsignado}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">${categoriaFinal}</span></p>
-                            <p><strong>Descripción:</strong> ${descripcion}</p>
-                            <p><strong>Verificación / Fuente:</strong> <span style="color: #2980b9; font-weight: bold;">${fuente}</span></p>
-                    `;
+                const colorAsignado = coloresAyuda[categoriaFinal];
+                
+                let fotoUrl = '';
+                let videoUrl = '';
 
-                    if (masInformacion.trim() !== '') {
-                        const urlValida = masInformacion.startsWith('http') ? masInformacion : `https://${masInformacion}`;
-                        popupContent += `
-                            <p><strong>Más información:</strong> 
-                                <a href="${urlValida}" target="_blank" style="color: #e67e22; font-weight: bold; text-decoration: underline;">
-                                    Ver enlace externo 🔗
-                                </a>
-                            </p>
-                        `;
-                    }
-                    
-                    if (fotoUrl) {
-                        popupContent += `
-                            <p><strong>Captura de Origen:</strong><br>
-                                <img src="${fotoUrl}" class="popup-media" alt="Evidencia" onerror="this.style.display='none';">
-                            </p>
-                        `;
-                    }
+                if (registro._attachments && registro._attachments.length > 0) {
+                    const adjuntoFoto = registro._attachments.find(att => att.question_xpath === 'evidencia_foto');
+                    if (adjuntoFoto) fotoUrl = adjuntoFoto.download_medium_url || adjuntoFoto.download_url || '';
 
-                    if (urlEmbebida !== '') {
-                        const esLinkCortoTikTok = linkRedSocial.includes('tiktok.com') && !urlEmbebida.includes('/embed/');
+                    const adjuntoVideo = registro._attachments.find(att => att.question_xpath === 'evidencia_video');
+                    if (adjuntoVideo) videoUrl = adjuntoVideo.download_url || '';
+                }
 
-                        popupContent += `
-                            <div style="margin-top: 8px;">
-                                <p><strong>Video de Red Social:</strong></p>
-                                <div style="position: relative; width: 100%; max-width: 350px; height: 340px; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.2); background-color: #000;">
-                        `;
+                // Construcción del Popup
+                let popupContent = `
+                    <div class="popup-emergencia">
+                        <h3>📍 Reporte de Campo</h3>
+                        <p><strong>Tipo de Ayuda:</strong> <span style="background: ${colorAsignado}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">${categoriaFinal}</span></p>
+                        <p><strong>Descripción:</strong> ${descripcion}</p>
+                        <p><strong>Verificación / Fuente:</strong> <span style="color: #2980b9; font-weight: bold;">${fuente}</span></p>
+                `;
 
-                        if (esLinkCortoTikTok) {
-                            popupContent += `
-                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; text-align: center; color: white;">
-                                        <span style="font-size: 24px; margin-bottom: 10px;">📱</span>
-                                        <p style="font-size: 11px; margin-bottom: 15px; line-height:1.3;">Video de TikTok copiado desde celular (enlace corto).</p>
-                                        <a href="${linkRedSocial}" target="_blank" style="background-color: #fe2c55; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 11px;">
-                                            Ver video en TikTok ↗
-                                        </a>
-                                    </div>
-                            `;
-                        } else {
-                            popupContent += `
-                                    <iframe src="${urlEmbebida}" width="100%" height="100%" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media;"></iframe>
-                            `;
-                        }
+                if (masInformacion.trim() !== '') {
+                    const urlValida = masInformacion.startsWith('http') ? masInformacion : `https://${masInformacion}`;
+                    popupContent += `<p><strong>Más información:</strong> <a href="${urlValida}" target="_blank" style="color: #e67e22; font-weight: bold; text-decoration: underline;">Ver enlace externo 🔗</a></p>`;
+                }
+                
+                if (fotoUrl) {
+                    popupContent += `<p><strong>Captura de Origen:</strong><br><img src="${fotoUrl}" class="popup-media" alt="Evidencia" onerror="this.style.display='none';"></p>`;
+                }
 
-                        popupContent += `</div></div>`;
-                    }
-
-                    if (videoUrl) {
-                        popupContent += `
-                            <div style="margin-top: 8px;">
-                                <p><strong>Video de Redes:</strong></p>
-                                <div style="position: relative; background: #000; border-radius: 6px; width: 100%; max-width: 350px; height: 200px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
-                                    <video class="popup-media" controls preload="none" playsinline style="width: 100%; height: 100%; object-fit: cover;" onclick="if(!this.src){ this.src='${videoUrl}'; this.load(); } this.play();">
-                                        Tu navegador no soporta streaming.
-                                    </video>
-                                    <div class="play-overlay" style="position: absolute; color: white; pointer-events: none; font-size: 12px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 4px; text-align: center;">
-                                        ▶️ Hacer clic para cargar e iniciar video
-                                    </div>
-                                </div>
-                                <a href="${videoUrl}" target="_blank" style="font-size: 11px; color: #2980b9; text-decoration: underline; display: block; margin-top: 6px; font-weight: 600;">
-                                    📥 Descargar video
-                                </a>
-                            </div>
-                        `;
-                    }
-
-                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-                    const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-
+                if (urlEmbebida !== '') {
+                    const esLinkCortoTikTok = linkRedSocial.includes('tiktok.com') && !urlEmbebida.includes('/embed/');
                     popupContent += `
-                        <div style="margin-top: 12px; display: flex; gap: 8px;">
-                            <a href="${googleMapsUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #34a853; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🚗 Google Maps</a>
-                            <a href="${wazeUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #29b6f6; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🔷 Waze</a>
-                        </div>
-                        <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
-                        <p style="margin: 0; font-size: 11px; color: #777; text-align: right;">📅 Registro: ${fecha}</p>
-                    </div>
+                        <div style="margin-top: 8px;">
+                            <p><strong>Video de Red Social:</strong></p>
+                            <div style="position: relative; width: 100%; max-width: 350px; height: 340px; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.2); background-color: #000;">
                     `;
+                    if (esLinkCortoTikTok) {
+                        popupContent += `
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; text-align: center; color: white;">
+                                    <span>📱</span><p style="font-size: 11px; margin-bottom: 15px;">Video de TikTok (enlace corto).</p>
+                                    <a href="${linkRedSocial}" target="_blank" style="background-color: #fe2c55; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 11px;">Ver video ↗</a>
+                                </div>
+                        `;
+                    } else {
+                        popupContent += `<iframe src="${urlEmbebida}" width="100%" height="100%" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media;"></iframe>`;
+                    }
+                    popupContent += `</div></div>`;
+                }
 
-                    const marker = L.circleMarker([lat, lng], {
-                        radius: 9,
-                        fillColor: colorAsignado,
-                        color: "#ffffff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    }).bindPopup(popupContent);
+                if (videoUrl) {
+                    popupContent += `
+                        <div style="margin-top: 8px;">
+                            <p><strong>Video de Redes:</strong></p>
+                            <div style="position: relative; background: #000; border-radius: 6px; width: 100%; max-width: 350px; height: 200px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+                                <video class="popup-media" controls preload="none" playsinline style="width: 100%; height: 100%; object-fit: cover;" onclick="if(!this.src){ this.src='${videoUrl}'; this.load(); } this.play();"></video>
+                                <div class="play-overlay" style="position: absolute; color: white; pointer-events: none; font-size: 12px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 4px;">▶️ Cargar video</div>
+                            </div>
+                        </div>
+                    `;
+                }
 
-                    marker.on('popupopen', function() {
-                        const videoEl = document.querySelector('.leaflet-popup-content video');
-                        const overlayEl = document.querySelector('.leaflet-popup-content .play-overlay');
-                        if (videoEl && overlayEl) {
-                            videoEl.addEventListener('play', () => {
-                                overlayEl.style.display = 'none';
-                            });
-                        }
-                    });
+                const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
 
-                    // ASIGNACIÓN ESTRATÉGICA: El punto se añade al grupo de su respectiva categoría
+                popupContent += `
+                    <div style="margin-top: 12px; display: flex; gap: 8px;">
+                        <a href="${googleMapsUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #34a853; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">🚗 Google Maps</a>
+                        <a href="${wazeUrl}" target="_blank" style="flex: 1; text-align: center; background-color: #29b6f6; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">🔷 Waze</a>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #eee; margin: 8px 0;">
+                    <p style="margin: 0; font-size: 11px; color: #777; text-align: right;">📅 Registro: ${fecha}</p>
+                </div>
+                `;
+
+                const marker = L.circleMarker([lat, lng], {
+                    radius: 9,
+                    fillColor: colorAsignado,
+                    color: "#ffffff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).bindPopup(popupContent);
+
+                // Guardar en la capa correspondiente
+                if (capasPorCategoria[categoriaFinal]) {
                     capasPorCategoria[categoriaFinal].addLayer(marker);
                 }
-            });
-
-            // 3. Añadir de forma predeterminada todas las categorías cargadas al mapa
-            // Construimos también el objeto que usará la leyenda interactiva
-            let overlaysLeyenda = {};
-            for (const clave in capasPorCategoria) {
-                capasPorCategoria[clave].addTo(map); 
-                
-                // Formateamos el texto de la leyenda inyectando un círculo con su color correspondiente
-                const colorHex = coloresAyuda[clave];
-                overlaysLeyenda[`<span class="legend-icon-inline" style="background:${colorHex}"></span>${clave}`] = capasPorCategoria[clave];
             }
+        });
 
-            // 4. Inyectar el control de capas interactivo nativo en la esquina inferior izquierda
-            controlCapas = L.control.layers(null, overlaysLeyenda, {
-                position: 'bottomleft',
-                collapsed: false // Mantiene la leyenda abierta para que sea visible de inmediato
-            }).addTo(map);
+        // Añadir grupos al mapa y armar leyenda
+        let overlaysLeyenda = {};
+        for (const clave in capasPorCategoria) {
+            capasPorCategoria[clave].addTo(map); 
+            const colorHex = coloresAyuda[clave];
+            overlaysLeyenda[`<span class="legend-icon-inline" style="background:${colorHex}"></span>${clave}`] = capasPorCategoria[clave];
+        }
+
+        controlCapas = L.control.layers(null, overlaysLeyenda, {
+            position: 'bottomleft',
+            collapsed: false 
+        }).addTo(map);
+        
+        const contenedorControles = controlCapas.getContainer();
+        const tituloSeccion = document.createElement('div');
+        tituloSeccion.className = 'leaflet-control-layers-group-name';
+        tituloSeccion.innerHTML = 'Solicitudes de Apoyo';
+        contenedorControles.insertBefore(tituloSeccion, contenedorControles.firstChild);
+    }
+
+    // --- CORRECCIÓN EN EL FILTRO DE FECHAS (ZONA HORARIA LOCAL) ---
+    function aplicarFiltroFechas() {
+        const inicioInput = document.getElementById('fecha-inicio').value; // Retorna "YYYY-MM-DD"
+        const finInput = document.getElementById('fecha-fin').value;
+
+        if (!inicioInput || !finInput) {
+            alert("Por favor, selecciona ambas fechas para proceder.");
+            return;
+        }
+
+        // Crear las fechas usando guiones interpretados localmente por JS reemplazando la lógica anterior.
+        // Forzamos horas extremas locales para no perder registros por minutos.
+        const tInicio = new Date(inicioInput.replace(/-/g, '\/')).setHours(0,0,0,0);
+        const tFin = new Date(finInput.replace(/-/g, '\/')).setHours(23,59,59,999);
+
+        const registrosFiltrados = todosLosRegistros.filter(registro => {
+            const fechaAlerta = registro['fecha_de_alerta']; // Normalmente viene como "YYYY-MM-DD" o formato ISO
+            if (!fechaAlerta) return false;
             
-            // Añadir un encabezado estético dentro de la caja de la leyenda de Leaflet
-            const contenedorControles = controlCapas.getContainer();
-            const tituloSeccion = document.createElement('div');
-            tituloSeccion.className = 'leaflet-control-layers-group-name';
-            tituloSeccion.innerHTML = 'Solicitudes de Apoyo';
-            contenedorControles.insertBefore(tituloSeccion, contenedorControles.firstChild);
-        }
+            // Extraer solo la parte de la fecha base (YYYY-MM-DD) para normalizar la comparación local
+            const fechaBase = fechaAlerta.substring(0, 10);
+            const fechaRegistroMs = new Date(fechaBase.replace(/-/g, '\/')).setHours(0,0,0,0);
+            
+            return fechaRegistroMs >= tInicio && fechaRegistroMs <= tFin;
+        });
 
-        // Lógica matemática del filtro de fechas
-        function aplicarFiltroFechas() {
-            const inicioInput = document.getElementById('fecha-inicio').value;
-            const finInput = document.getElementById('fecha-fin').value;
+        dibujarMarcadores(registrosFiltrados);
+    }
 
-            if (!inicioInput || !finInput) {
-                alert("Por favor, selecciona ambas fechas para proceder.");
-                return;
-            }
+    function limpiarFiltroFechas() {
+        document.getElementById('fecha-inicio').value = "";
+        document.getElementById('fecha-fin').value = "";
+        dibujarMarcadores(todosLosRegistros);
+    }
 
-            const tInicio = new Date(inicioInput + "T00:00:00").getTime();
-            const tFin = new Date(finInput + "T23:59:59").getTime();
-
-            const registrosFiltrados = todosLosRegistros.filter(registro => {
-                const fechaAlerta = registro['fecha_de_alerta'];
-                if (!fechaAlerta) return false;
-                
-                const fechaRegistro = new Date(fechaAlerta).getTime();
-                return fechaRegistro >= tInicio && fechaRegistro <= tFin;
-            });
-
-            dibujarMarcadores(registrosFiltrados);
-        }
-
-        function limpiarFiltroFechas() {
-            document.getElementById('fecha-inicio').value = "";
-            document.getElementById('fecha-fin').value = "";
-            dibujarMarcadores(todosLosRegistros);
-        }
-
-        // Ejecutar carga inicial asíncrona
-        cargarAlertas();
-    </script>
+    cargarAlertas();
+</script>
 </body>
 </html>
