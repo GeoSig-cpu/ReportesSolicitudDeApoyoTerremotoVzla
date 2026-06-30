@@ -163,6 +163,7 @@
         }
 
         /* Ajustes para pantallas pequeñas (Celulares) */
+
         @media (max-width: 600px) {
             .map-header {
                 top: 10px;
@@ -176,37 +177,54 @@
                 font-size: 10px;
             }
             
-            /* REUBICACIÓN DE FILTROS EN MÓVIL: Arriba, horizontal y estético */
+            /* Contenedor principal de filtros */
             .filter-container {
-                top: 115px; /* Se posiciona justo debajo del banner principal */
+                top: 115px;
                 bottom: auto;
                 left: 50%;
                 right: auto;
                 transform: translateX(-50%);
-                width: 85%;
-                flex-direction: row; /* Coloca los elementos uno al lado del otro */
-                flex-wrap: wrap;
+                width: 88%;
+                flex-direction: row;
+                flex-wrap: nowrap; /* Mantiene todo en una sola fila compacta */
                 justify-content: space-between;
-                align-items: center;
-                gap: 8px;
-                padding: 8px 12px;
+                align-items: flex-end; /* Alinea los botones con las cajas de fecha */
+                gap: 6px;
+                padding: 6px 10px;
             }
-            .filter-container label {
-                display: none; /* Escondemos el texto "Desde/Hasta" para ganar espacio vital */
+
+            /* Contenedor individual para etiqueta + entrada */
+            .date-group {
+                display: flex;
+                flex-direction: column;
+                flex: 2; /* Le da un poco más de espacio a las fechas */
+                gap: 2px;
             }
+
+            /* Texto indicador "Desde" / "Hasta" */
+            .date-label {
+                display: block !important;
+                font-size: 9px;
+                font-weight: bold;
+                color: #2c3e50;
+                text-transform: uppercase;
+                margin-left: 2px;
+            }
+
             .filter-container input[type="date"] {
-                flex: 1;
-                min-width: 100px;
+                width: 100%;
                 font-size: 11px;
-                padding: 4px;
+                padding: 4px 2px;
+                box-sizing: border-box;
             }
+
             .filter-container button {
                 flex: 1;
                 font-size: 11px;
-                padding: 5px;
+                padding: 5px 2px;
+                height: 27px; /* Forzamos altura idéntica a los inputs */
             }
             
-            /* Ajuste extra para la leyenda en móvil si es necesario */
             .leaflet-control-layers {
                 max-width: 180px;
                 font-size: 12px !important;
@@ -224,11 +242,15 @@
         <div class="counter-badge" id="report-counter">Cargando reportes...</div>
     </div>
 
-    <div class="filter-container">
-        <label>Desde:</label>
-        <input type="date" id="fecha-inicio">
-        <label>Hasta:</label>
-        <input type="date" id="fecha-fin">
+<div class="filter-container">
+        <div class="date-group">
+            <span class="date-label">Desde:</span>
+            <input type="date" id="fecha-inicio">
+        </div>
+        <div class="date-group">
+            <span class="date-label">Hasta:</span>
+            <input type="date" id="fecha-fin">
+        </div>
         <button onclick="aplicarFiltroFechas()">Filtrar</button>
         <button onclick="limpiarFiltroFechas()" style="background:#7f8c8d;">Ver Todos</button>
     </div>
