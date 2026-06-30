@@ -324,17 +324,37 @@
                 const urlEmbebida = obtenerUrlIncrustada(linkRedSocial);
                 const masInformacion = registro['M_s_informaci_n'] || '';
                 
-                // --- CORRECCIÓN DE CATEGORÍAS (NORMALIZACIÓN) ---
-                const tipoAyudaRaw = registro['tipo_ayuda'] ? String(registro['tipo_ayuda']).trim() : '';
+// --- CORRECCIÓN DE CATEGORÍAS (NORMALIZACIÓN Y AUTO-DETECCIÓN) ---
+                let tipoAyudaRaw = registro['tipo_ayuda'] ? String(registro['tipo_ayuda']).trim() : '';
+                const descripcionBajo = descripcion.toLowerCase();
+
+                // Auto-detección por palabras clave en la descripción si el campo viene vacío
+                if (!tipoAyudaRaw) {
+                    if (descripcionBajo.includes('maquinaria') || descripcionBajo.includes('grúa') || descripcionBajo.includes('grua') || descripcionBajo.includes('botella') || descripcionBajo.includes('puntales') || descripcionBajo.includes('esmeril')) {
+                        tipoAyudaRaw = 'maquinaria_pesada_1';
+                    } else if (descripcionBajo.includes('medicina') || descripcionBajo.includes('médic') || descripcionBajo.includes('medic') || descripcionBajo.includes('insumos') || descripcionBajo.includes('clínica')) {
+                        tipoAyudaRaw = 'insumos_médicos';
+                    } else if (descripcionBajo.includes('aliento') || descripcionBajo.includes('comida') || descripcionBajo.includes('agua')) {
+                        tipoAyudaRaw = 'alimentos';
+                    } else if (descripcionBajo.includes('rescatista') || descripcionBajo.includes('rescate') || descripcionBajo.includes('voluntarios')) {
+                        tipoAyudaRaw = 'rescatistas';
+                    } else if (descripcionBajo.includes('planta eléctrica') || descripcionBajo.includes('baño') || descripcionBajo.includes('ingeniero')) {
+                        tipoAyudaRaw = 'otro';
+                    } else {
+                        tipoAyudaRaw = 'No especificado';
+                    }
+                }
+
                 const tipoAyudaMinuscula = tipoAyudaRaw.toLowerCase();
-                
                 let categoriaFinal = "No especificado";
 
-                // 1. Intentar buscar en el mapeo de normalización personalizado
-                if (mapeoCategorias[tipoAyudaMinuscula]) {
+                // 1. Validar contra el mapa de traducción de Kobo (probando raw y minúscula)
+                if (mapeoCategorias[tipoAyudaRaw]) {
+                    categoriaFinal = mapeoCategorias[tipoAyudaRaw];
+                } else if (mapeoCategorias[tipoAyudaMinuscula]) {
                     categoriaFinal = mapeoCategorias[tipoAyudaMinuscula];
                 } else {
-                    // 2. Intentar buscar coincidencia directa ignorando mayúsculas/minúsculas
+                    // 2. Validar coincidencia directa en el diccionario maestro sin importar mayúsculas
                     const coincidenciaDirecta = Object.keys(coloresAyuda).find(
                         clave => clave.toLowerCase() === tipoAyudaMinuscula
                     );
