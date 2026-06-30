@@ -227,24 +227,19 @@
     let todosLosRegistros = [];
     let controlCapas = null;
 
-    // Diccionario maestro de colores estándar
     const coloresAyuda = {
-        "Maquinaria_Pesada_1": "#e74c3c", 
-        "Insumos_médicos": "#00bcd4",   
+        "Maquinaria Pesada": "#e74c3c", 
+        "Insumos médicos": "#00bcd4",   
         "Alimentos": "#2ecc71",         
         "Rescatistas": "#9b59b6",       
         "Otro": "#f1c40f",              
         "No especificado": "#7f8c8d"    
     };
 
-    // NUEVO: Diccionario de normalización para interceptar cómo viene de Kobo/API
-    // Esto asegura que si viene en minúsculas, con guiones bajos o con errores comunes, se asigne bien.
     const mapeoCategorias = {
-        "alimentos": "Alimentos",
+
         "Insumos_médicos": "Insumos médicos",
         "Maquinaria_Pesada_1": "Maquinaria Pesada",
-        "rescatistas": "Rescatistas",
-        "otro": "Otro"
     };
 
     let capasPorCategoria = {};
