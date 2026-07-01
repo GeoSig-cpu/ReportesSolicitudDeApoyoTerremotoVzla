@@ -336,10 +336,14 @@
             const response = await fetchConTimeout(apiSecureUrl, { method: 'GET' });
             if (!response.ok) throw new Error(`Error de red: ${response.status}`);
             
-                const data = await response.json(); 
-                const bruto = data.results || [];
-// Guardamos globalmente filtrando de una vez los timestamps para que todo el sistema cuadre perfectamente:
-                todosLosRegistros = bruto.filter(r => r['_validation_status'] !== 'timestamp');
+    const data = await response.json(); 
+            const bruto = data.results || [];
+            
+            // Conserva todos los registros EXCEPTUANDO los que están estrictamente "On Hold"
+            todosLosRegistros = bruto.filter(r => {
+                const status = r['_validation_status'];
+                return !(status && status.uid === 'validation_status_on_hold');
+            });
             
             dibujarMarcadores(todosLosRegistros);
         } catch (error) {
@@ -372,9 +376,10 @@
 
         registros.forEach(registro => {
 
-            if (registro['_validation_status'] === 'timestamp') {
-                return; // Ignora este registro y pasa al siguiente
-                }
+          const status = registro['_validation_status'];
+            if (status && status.uid === 'validation_status_on_hold') {
+                return; // Ignora este reporte y pasa al siguiente
+            }
 
             if (registro._geolocation && registro._geolocation.length >= 2) {
                 const lat = parseFloat(registro._geolocation[0]);
